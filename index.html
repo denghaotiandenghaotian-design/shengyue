@@ -686,17 +686,21 @@ body.playing .play{ animation:playpulse 2.2s ease-in-out infinite; }
     return cleanText(t);
   }
   function buildChunks(text){
+    // 自适应分段：超大文本放大每段字数，降低 chunk 对象数，减少手机 OOM 风险
+    var big = text.length > 500000, huge = text.length > 2000000;
+    var MAX = huge ? 1200 : (big ? 600 : 180);
+    var MIN = huge ? 800 : (big ? 400 : 120);
     var sentences = (text.match(/[^。！？!?；;…\n]*[。！？!?；;…\n]?/g) || [text])
       .map(function(s){return s.trim();}).filter(Boolean);
     if(sentences.length === 0) sentences = [text];
     var chunks = [], buf = "", start = 0;
     for(var i=0;i<sentences.length;i++){
       var s = sentences[i];
-      if((buf + s).length > 180 && buf){
+      if((buf + s).length > MAX && buf){
         chunks.push({text:buf, start:start, len:buf.length}); start += buf.length; buf = "";
       }
       buf += s;
-      if(buf.length >= 120 || i === sentences.length-1){
+      if(buf.length >= MIN || i === sentences.length-1){
         chunks.push({text:buf, start:start, len:buf.length}); start += buf.length; buf = "";
       }
     }
@@ -937,18 +941,53 @@ body.playing .play{ animation:playpulse 2.2s ease-in-out infinite; }
     if(typeof pdfjsLib === "undefined"){ toast("PDF 引擎未加载（检查网络），可改用 TXT/MD", true); return; }
     try{
       pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-      pdfjsLib.getDocument({data:buf}).promise.then(function(pdf){
-        var pages = new Array(pdf.numPages), done = 0, n = pdf.numPages;
-        for(var p=1;p<=n;p++){
-          (function(pi){
-            pdf.getPage(pi).then(function(page){ return page.getTextContent(); }).then(function(tc){
-              pages[pi-1] = tc.items.map(function(it){return it.str;}).join(" "); done++;
-              if(done===n) setText(cleanText(pages.join("\n")), name);
-            }).catch(function(){ done++; if(done===n) setText(cleanText(pages.join("\n")), name); });
-          })(p);
+      var meta = $("fileMeta");
+      if(meta) meta.textContent = "正在解析 PDF …";
+      // 大文件优化：限制并发页数 + 关闭自动预取，避免内存瞬间打满
+      var isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      pdfjsLib.getDocument({data:buf, disableAutoFetch:true, isEvalSupported:false, disableFontFace:true}).promise.then(function(pdf){
+        var n = pdf.numPages;
+        var full = "";
+        var done = 0;
+        var BATCH = isMobile ? 4 : 8;   // 同时处理的页数，控制内存峰值
+        function setProg(){ if(meta) meta.textContent = "正在解析 PDF： " + done + " / " + n + " 页 …"; }
+        function run(i){
+          if(i > n){ finish(); return; }
+          var end = Math.min(i + BATCH, n), tasks = [];
+          for(var p=i; p<=end; p++){
+            (function(pi){
+              tasks.push(
+                pdf.getPage(pi)
+                  .then(function(page){ return page.getTextContent(); })
+                  .then(function(tc){ return tc.items.map(function(it){ return it.str; }).join(" "); })
+                  .catch(function(){ return ""; })
+              );
+            })(p);
+          }
+          Promise.all(tasks).then(function(texts){
+            for(var k=0;k<texts.length;k++){ if(texts[k]) full += (full ? "\n" : "") + texts[k]; }
+            done = end; setProg();
+            setTimeout(function(){ run(end + 1); }, 0);  // 让出主线程，保持进度刷新
+          }).catch(function(){
+            done = end; setProg(); setTimeout(function(){ run(end + 1); }, 0);
+          });
         }
-      }).catch(function(e){ toast("PDF 解析失败："+e.message, true); });
-    }catch(e){ toast("PDF 解析失败："+e.message, true); }
+        function finish(){
+          var text = cleanText(full);
+          if(!text){
+            if(meta) meta.textContent = "未提取到文字";
+            toast("⚠️ 此 PDF 没有可提取的文字（很可能是扫描件 / 图片型，没有文字层）。请先转成文字版 PDF，或导出 TXT / Word 再听。", true);
+            return;
+          }
+          var nonspace = text.replace(/\s/g, "").length;
+          if(nonspace < Math.max(50, n)){  // 文字极少 → 大概率是扫描件
+            toast("提示：此 PDF 文字很少（可能是扫描件），朗读内容可能不完整。", true);
+          }
+          setText(text, name);
+        }
+        run(1);
+      }).catch(function(e){ toast("PDF 解析失败：" + (e && e.message ? e.message : e), true); });
+    }catch(e){ toast("PDF 解析失败：" + (e && e.message ? e.message : e), true); }
   }
   function parseDocx(buf, name){
     if(typeof mammoth === "undefined"){ toast("Word 引擎未加载（检查网络）", true); return; }
