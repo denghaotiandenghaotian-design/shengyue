@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1f3d" />
+<title>声阅 · 文件语音收听</title>
+
+<!-- PWA：可安装的移动应用 -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="声阅">
+<meta name="application-name" content="声阅">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@300;400;500;600&family=Noto+Serif+SC:wght@300;400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+<!-- 第三方解析库（CDN，失败时自动回退） -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+:root{
+  /* 调色板：深海军蓝 × 纸色（参考《生态系统理论》PPT） */
+  --ink:#0a1f3d;
+  --ink-rgb:10,31,61;
+  --paper:#f1f3f5;
+  --paper-rgb:241,243,245;
+  --paper-tint:#e4e8ec;
+  --ink-tint:#152a4a;
+  --gold:#bd8a3c;
+  --gold-soft:rgba(189,138,60,.12);
+
+  /* 编辑式三件套字体 */
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --serif-en:"Playfair Display","Source Serif 4",Georgia,serif;
+  --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;
+  --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;
+
+  /* 应用语义色 */
+  --color-primary:#0a1f3d;
+  --color-primary-dark:#152a4a;
+  --color-primary-soft:#eef1f5;
+  --color-accent:#bd8a3c;
+  --color-accent-soft:#f3e9d6;
+  --color-bg-1:#f1f3f5;
+  --color-bg-2:#e4e8ec;
+  --color-surface:#FFFFFF;
+  --color-surface-2:#f5f6f8;
+  --color-text:#0a1f3d;
+  --color-text-soft:#5b6577;
+  --color-border:rgba(10,31,61,0.14);
+  --color-success:#2f7d5b;
+  --color-warning:#c08a2e;
+  --color-danger:#b4474f;
+  --shadow-color:rgba(10,31,61,0.12);
+  --container:760px;
+  --shadow-sm:0 1px 2px var(--shadow-color);
+  --shadow-md:0 6px 22px var(--shadow-color);
+  --shadow-lg:0 12px 34px rgba(10,31,61,0.16);
+  --radius:22px;
+  --radius-sm:13px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#eef1f5;
+    --ink-rgb:238,241,245;
+    --paper:#0a1f3d;
+    --paper-rgb:10,31,61;
+    --paper-tint:#091a33;
+    --ink-tint:#1b3457;
+    --gold:#d6a85a;
+    --gold-soft:rgba(214,168,90,.14);
+
+    --color-primary:#cdd6e3;
+    --color-primary-dark:#9fb0c8;
+    --color-primary-soft:#16233b;
+    --color-accent:#d6a85a;
+    --color-accent-soft:#2a2316;
+    --color-bg-1:#0a1f3d;
+    --color-bg-2:#091a33;
+    --color-surface:#10203a;
+    --color-surface-2:#16294a;
+    --color-text:#eef1f5;
+    --color-text-soft:#9fb0c8;
+    --color-border:rgba(205,214,227,0.16);
+    --shadow-color:rgba(0,0,0,0.5);
+    --shadow-lg:0 12px 34px rgba(0,0,0,0.55);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:linear-gradient(180deg,var(--color-bg-1),var(--color-bg-2));
+  background-attachment:fixed;
+  color:var(--color-text);
+  font-size:16px;line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.wrap{max-width:var(--container);margin:0 auto;padding:18px 16px 150px;}
+
+/* 顶部 */
+.header{display:flex;align-items:center;gap:14px;padding:6px 4px 20px;}
+.logo{
+  width:50px;height:50px;border-radius:16px;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--color-primary),var(--color-accent));
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  box-shadow:0 8px 20px rgba(91,108,246,.35);
+}
+.header h1{font-size:24px;font-weight:700;margin:0;letter-spacing:-.4px;}
+.header .sub{margin:0;font-size:12.5px;color:var(--color-text-soft);letter-spacing:.3px;}
+.badge{margin-left:auto;font-size:11px;font-weight:600;color:var(--color-primary);
+  background:var(--color-primary-soft);border-radius:999px;padding:5px 11px;white-space:nowrap;}
+
+/* 卡片 */
+.card{
+  background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:var(--radius);padding:22px;margin-bottom:16px;
+  box-shadow:var(--shadow-md);
+}
+
+/* 上传区 */
+.dropzone{
+  border:2px dashed var(--color-border);border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--color-surface-2),var(--color-surface));
+  padding:34px 18px;text-align:center;cursor:pointer;transition:.18s;
+}
+.dropzone:hover{border-color:var(--color-primary);}
+.dropzone.drag{border-color:var(--color-primary);background:var(--color-primary-soft);transform:scale(1.005);}
+.dropzone .ic{font-size:40px;}
+.dropzone .t1{font-weight:700;margin-top:8px;font-size:17px;}
+.dropzone .t2{font-size:13px;color:var(--color-text-soft);margin-top:4px;}
+.fmt{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px;}
+.fmt span{background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--color-text-soft);}
+.limit-note{font-size:12px;color:var(--color-text-soft);text-align:center;margin-top:10px;}
+.limit-note b{color:var(--color-primary);}
+
+/* 文本粘贴 */
+textarea{width:100%;min-height:120px;resize:vertical;background:var(--color-surface-2);
+  border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:12px 14px;
+  color:var(--color-text);font-family:inherit;font-size:14px;line-height:1.6;transition:.15s;}
+textarea:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft);}
+.or{text-align:center;color:var(--color-text-soft);font-size:13px;margin:14px 0;}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:14px;
+  padding:12px 18px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;transition:.15s;min-height:46px;}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:linear-gradient(135deg,var(--color-primary),var(--color-primary-dark));color:#fff;box-shadow:0 6px 16px rgba(91,108,246,.3);}
+.btn-primary:hover{filter:brightness(1.04);}
+.btn-ghost{background:transparent;color:var(--color-primary);border:1px solid var(--color-border);}
+.btn-danger{background:var(--color-danger);color:#fff;}
+.btn-block{width:100%;}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;}
+
+/* 设置项 */
+.section-title{font-size:18px;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:9px;}
+.field{margin-bottom:18px;}
+.field>label{display:block;font-size:14px;font-weight:600;margin-bottom:9px;color:var(--color-text);}
+select{width:100%;min-height:46px;background:var(--color-surface-2);border:1px solid var(--color-border);
+  border-radius:var(--radius-sm);padding:11px 12px;color:var(--color-text);font-family:inherit;font-size:15px;
+  appearance:none;transition:.15s;}
+select:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft);}
+optgroup{font-weight:600;color:var(--color-text-soft);}
+.slider-row{display:flex;align-items:center;gap:12px;}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;
+  background:var(--color-surface-2);outline:none;accent-color:var(--color-primary);}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--color-primary);border:3px solid #fff;box-shadow:var(--shadow-sm);cursor:pointer;transition:.1s;}
+input[type=range]::-webkit-slider-thumb:active{transform:scale(1.15);}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--color-primary);border:3px solid #fff;cursor:pointer;}
+.val{font-size:13px;font-weight:700;color:var(--color-primary);min-width:54px;text-align:right;}
+
+/* 开关 */
+.switch{position:relative;display:inline-block;width:48px;height:27px;flex:0 0 auto;}
+.switch input{opacity:0;width:0;height:0;}
+.switch .track{position:absolute;inset:0;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:999px;transition:.2s;}
+.switch .track:before{content:"";position:absolute;width:21px;height:21px;left:3px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:var(--shadow-sm);}
+.switch input:checked+.track{background:var(--color-primary);border-color:var(--color-primary);}
+.switch input:checked+.track:before{transform:translateX(21px);}
+.field-inline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;}
+.field-inline .lbl{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;}
+
+/* BGM 曲库 chips */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;margin-top:4px;-webkit-overflow-scrolling:touch;}
+.chips::-webkit-scrollbar{height:0;}
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;background:var(--color-surface-2);
+  border:1px solid var(--color-border);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;
+  color:var(--color-text-soft);cursor:pointer;transition:.15s;white-space:nowrap;}
+.chip:active{transform:scale(.96);}
+.chip.active{background:linear-gradient(135deg,var(--color-primary),var(--color-primary-dark));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(91,108,246,.3);}
+.chip .eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px;}
+.chip .eq i{width:2.5px;background:currentColor;border-radius:2px;height:4px;}
+
+/* 朗读文本面板 */
+.reading{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  padding:18px;max-height:260px;overflow:auto;font-size:16px;line-height:1.9;color:var(--color-text-soft);
+  white-space:pre-wrap;word-break:break-word;}
+.reading .cur{color:var(--color-text);background:var(--color-accent-soft);border-radius:5px;padding:1px 3px;font-weight:500;}
+.nowbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.eq{display:inline-flex;gap:3px;align-items:flex-end;height:18px;}
+.eq i{width:3px;background:var(--color-accent);border-radius:3px;height:6px;}
+body.playing .eq i{animation:bounce .9s ease-in-out infinite;}
+.eq i:nth-child(2){animation-delay:.15s;}
+.eq i:nth-child(3){animation-delay:.3s;}
+.eq i:nth-child(4){animation-delay:.45s;}
+@keyframes bounce{0%,100%{height:5px;}50%{height:18px;}}
+.meta{font-size:13px;color:var(--color-text-soft);margin-top:12px;}
+.meta b{color:var(--color-text);}
+
+.hint{font-size:12px;color:var(--color-text-soft);margin-top:6px;}
+
+/* 底部播放条 */
+.player{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.82);
+  backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-top:1px solid var(--color-border);box-shadow:0 -6px 24px var(--shadow-color);
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:50;}
+@media (prefers-color-scheme: dark){.player{background:rgba(28,31,43,.82);}}
+.player .inner{max-width:var(--container);margin:0 auto;}
+.pbar{position:relative;height:26px;display:flex;align-items:center;cursor:pointer;margin-bottom:4px;}
+.pbar .track{position:absolute;left:0;right:0;height:8px;border-radius:999px;background:var(--color-surface-2);overflow:hidden;}
+.pbar .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--color-primary),var(--color-accent));border-radius:999px;transition:width .15s linear;}
+.pbar .handle{position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--color-primary);
+  box-shadow:var(--shadow-sm);left:0;transform:translateX(-50%);transition:left .15s linear;pointer-events:none;}
+.ptip{display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-soft);margin-bottom:8px;}
+.pctrls{display:flex;align-items:center;justify-content:center;gap:20px;}
+.pbtn{width:48px;height:48px;border-radius:50%;border:1px solid var(--color-border);background:var(--color-surface-2);
+  color:var(--color-text);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:.15s;}
+.pbtn:active{transform:scale(.94);}
+.pbtn:disabled{opacity:.4;}
+.play{width:74px;height:74px;border-radius:50%;background:linear-gradient(135deg,var(--color-accent),#FF6F4D);color:#fff;border:none;
+  box-shadow:0 10px 24px rgba(255,138,91,.4);font-size:30px;display:flex;align-items:center;justify-content:center;}
+.play:active{transform:scale(.96);}
+.bgm-now{font-size:12px;color:var(--color-primary);text-align:center;margin-top:6px;min-height:16px;}
+
+/* toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:120px;background:var(--color-text);
+  color:var(--color-bg);padding:11px 18px;border-radius:999px;font-size:13px;z-index:60;box-shadow:var(--shadow-lg);
+  opacity:0;transition:.25s;pointer-events:none;max-width:90%;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{background:var(--color-danger);color:#fff;}
+
+@media (max-width:380px){.header h1{font-size:21px;}.reading{font-size:15px;}.play{width:66px;height:66px;font-size:26px;}}
+.sub{font-size:12.5px;color:var(--color-text-soft);margin-top:5px;}
+.divider{height:1px;background:var(--color-border);margin:18px 0;border:none;}
+
+/* 书签 */
+.bm-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.bm-head>span{font-size:15px;font-weight:700;}
+.bm-add{display:flex;gap:8px;flex:1;min-width:200px;}
+.bm-add input{flex:1;min-width:0;height:40px;background:var(--color-surface-2);border:1px solid var(--color-border);
+  border-radius:10px;padding:0 12px;color:var(--color-text);font-family:inherit;font-size:13.5px;}
+.bm-add input:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft);}
+.bm{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--color-border);
+  border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px;background:var(--color-surface-2);}
+.bm-txt{font-size:13.5px;font-weight:600;color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bm-acts{display:flex;gap:8px;flex:0 0 auto;}
+.bm-btn{border:1px solid var(--color-border);background:var(--color-surface);border-radius:10px;padding:6px 12px;
+  font-size:12.5px;font-weight:600;cursor:pointer;color:var(--color-primary);min-height:34px;}
+.bm-btn.danger{color:var(--color-danger);}
+.bm-btn:active{transform:scale(.96);}
+
+/* 睡眠定时提示 */
+.sleep-now{font-size:12px;color:var(--color-primary);text-align:center;margin-top:6px;min-height:16px;font-weight:600;}
+</style>
+
+<style id="premium">
+/* ===== 编辑式设计系统 · 深海军蓝 × 纸色（v2.3，参考《生态系统理论》PPT） ===== */
+:root{
+  --grad-primary:linear-gradient(135deg,#0a1f3d,#152a4a);
+  --grad-accent:linear-gradient(135deg,#bd8a3c,#d6a85a);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --grad-primary:linear-gradient(135deg,#1b3457,#0a1f3d);
+    --grad-accent:linear-gradient(135deg,#d6a85a,#e8c07a);
+  }
+}
+html{ background:var(--color-bg-1); }
+body{
+  font-family:var(--sans-zh);
+  background:transparent; letter-spacing:.01em;
+}
+
+/* 氛围背景：海军蓝 × 纸色 柔光（CSS 轻量，长时收听不耗电） */
+.bg-ambient{ position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+.bg-ambient::before, .bg-ambient::after{ content:""; position:absolute; border-radius:50%; filter:blur(110px); opacity:.55; }
+.bg-ambient::before{ width:60vw; height:60vw; background:radial-gradient(circle at 30% 30%, rgba(21,42,74,.5), transparent 70%); top:-20%; left:-14%; animation:float1 26s ease-in-out infinite; }
+.bg-ambient::after{ width:55vw; height:55vw; background:radial-gradient(circle at 70% 70%, rgba(189,138,60,.16), transparent 70%); bottom:-22%; right:-14%; animation:float2 30s ease-in-out infinite; }
+@keyframes float1{0%,100%{transform:translate(0,0);}50%{transform:translate(6vw,5vh);}}
+@keyframes float2{0%,100%{transform:translate(0,0);}50%{transform:translate(-5vw,-6vh);}}
+@media (prefers-color-scheme: dark){
+  .bg-ambient::before{ background:radial-gradient(circle at 30% 30%, rgba(40,68,114,.7), transparent 70%); }
+  .bg-ambient::after{ background:radial-gradient(circle at 70% 70%, rgba(214,168,90,.14), transparent 70%); }
+}
+
+/* 杂志式顶部 meta */
+.chrome-top{ display:flex; justify-content:space-between; align-items:center; gap:12px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--color-text-soft); opacity:.75; padding:2px 4px 16px; border-bottom:1px solid var(--color-border); margin-bottom:22px; }
+.chrome-top .sep{ flex:1; height:1px; background:currentColor; opacity:.35; margin:0 14px; }
+
+/* 卡片：纸面玻璃质感 + 入场 */
+.card{
+  background:rgba(255,255,255,0.66);
+  backdrop-filter:blur(22px) saturate(150%);
+  -webkit-backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid var(--color-border);
+  border-radius:var(--radius); padding:26px; margin-bottom:18px;
+  box-shadow:0 14px 40px var(--shadow-color), inset 0 1px 0 rgba(255,255,255,.7);
+  animation:rise .55s cubic-bezier(.2,.7,.3,1) both;
+}
+@media (prefers-color-scheme: dark){ .card{ background:rgba(16,32,58,0.62); box-shadow:0 14px 40px var(--shadow-color), inset 0 1px 0 rgba(255,255,255,.05); } }
+@keyframes rise{ from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:none;} }
+
+/* 顶部品牌区 */
+.header{ padding:4px 4px 18px; }
+.header h1{ font-family:var(--serif-zh); font-weight:700; font-size:31px; letter-spacing:-.01em; color:var(--ink); }
+.header .sub{ font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--color-text-soft); margin-top:6px; }
+.logo{ width:54px; height:54px; border-radius:16px; background:var(--grad-primary); box-shadow:0 10px 26px rgba(10,31,61,.35); position:relative; overflow:hidden; }
+.logo::after{ content:""; position:absolute; inset:3px; border-radius:13px; background:linear-gradient(135deg,rgba(255,255,255,.24),rgba(255,255,255,0)); }
+.badge{ font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:var(--color-text-soft); background:transparent; border:1px solid var(--color-border); border-radius:999px; padding:5px 11px; }
+
+/* 区块标题（衬线 + 金色侧标） */
+.section-title{ font-family:var(--serif-zh); font-weight:600; font-size:21px; letter-spacing:-.01em; margin:0 0 18px; display:flex; align-items:center; gap:11px; color:var(--ink); }
+.section-title::before{ content:""; width:5px; height:22px; border-radius:2px; background:var(--grad-accent); display:inline-block; flex:0 0 auto; }
+
+/* 上传区 */
+.dropzone{ border:1.5px dashed rgba(10,31,61,.28); background:linear-gradient(180deg, rgba(245,246,248,.8), rgba(255,255,255,.5)); border-radius:var(--radius); padding:40px 18px; transition:.22s cubic-bezier(.2,.7,.3,1); }
+.dropzone:hover{ border-color:var(--ink); box-shadow:0 10px 34px rgba(10,31,61,.12); transform:translateY(-2px); }
+.dropzone.drag{ border-color:var(--gold); background:var(--color-accent-soft); transform:translateY(-2px) scale(1.01); }
+.dropzone .ic{ filter:drop-shadow(0 6px 12px rgba(10,31,61,.18)); }
+.fmt span{ background:var(--color-surface); border:1px solid var(--color-border); border-radius:999px; padding:4px 11px; font-size:11px; font-family:var(--mono); letter-spacing:.05em; color:var(--color-text-soft); }
+.limit-note b{ color:var(--gold); }
+
+/* 按钮 */
+.btn-primary{ background:var(--grad-primary); color:#fff; border:none; box-shadow:0 8px 22px rgba(10,31,61,.28); }
+.btn-primary:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+.btn-ghost{ color:var(--ink); border:1px solid var(--color-border); background:rgba(255,255,255,.5); }
+@media (prefers-color-scheme: dark){ .btn-ghost{ background:rgba(255,255,255,.04); } }
+
+/* 控件 */
+select{ background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:var(--radius-sm); min-height:48px; padding:12px 14px; font-size:15px; font-family:var(--sans-zh); color:var(--color-text); box-shadow:inset 0 1px 2px rgba(255,255,255,.5); }
+select:focus{ border-color:var(--ink); box-shadow:0 0 0 4px var(--color-primary-soft); }
+textarea{ background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:var(--radius-sm); box-shadow:inset 0 1px 2px rgba(255,255,255,.45); font-family:var(--sans-zh); }
+textarea:focus{ border-color:var(--ink); box-shadow:0 0 0 4px var(--color-primary-soft); }
+
+/* 滑块 */
+input[type=range]{ height:8px; border-radius:999px; background:var(--color-surface-2); box-shadow:inset 0 1px 2px rgba(10,31,61,.1); }
+input[type=range]::-webkit-slider-thumb{ width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--ink); box-shadow:0 2px 8px rgba(10,31,61,.4); cursor:pointer; transition:.12s; }
+input[type=range]::-webkit-slider-thumb:active{ transform:scale(1.18); box-shadow:0 2px 14px rgba(10,31,61,.6); }
+input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:#fff; border:3px solid var(--ink); cursor:pointer; }
+
+/* 开关 */
+.switch .track{ background:var(--color-surface-2); }
+.switch input:checked+.track{ background:var(--grad-accent); border-color:transparent; }
+
+/* 读数 */
+.val{ color:var(--gold); font-weight:800; font-family:var(--mono); }
+
+/* 朗读面板 */
+.nowbar .eq i{ background:var(--grad-accent); }
+.reading{ background:rgba(245,246,248,.6); border:1px solid var(--color-border); border-radius:var(--radius-sm); font-family:var(--sans-zh); }
+.reading .cur{ background:transparent; border-bottom:2px solid var(--gold); color:var(--ink); font-weight:600; border-radius:0; padding:0 1px; }
+
+/* 书签 */
+.bm{ background:rgba(245,246,248,.6); border:1px solid var(--color-border); border-radius:var(--radius-sm); }
+.bm-txt{ font-weight:700; font-family:var(--serif-zh); }
+
+/* 播放条 */
+.player{ background:rgba(255,255,255,.74); backdrop-filter:blur(26px) saturate(180%); -webkit-backdrop-filter:blur(26px) saturate(180%); border-top:1px solid var(--color-border); box-shadow:0 -10px 36px var(--shadow-color); }
+@media (prefers-color-scheme: dark){ .player{ background:rgba(10,31,61,.8); } }
+.pbar .fill{ background:var(--grad-primary); box-shadow:0 0 10px rgba(10,31,61,.35); }
+.pbar .handle{ border:3px solid var(--ink); box-shadow:0 2px 10px rgba(10,31,61,.4); }
+.play{ background:var(--grad-accent); color:#fff; border:none; box-shadow:0 14px 32px rgba(189,138,60,.45); }
+body.playing .play{ animation:playpulse 2.2s ease-in-out infinite; }
+@keyframes playpulse{0%,100%{box-shadow:0 14px 32px rgba(189,138,60,.45);}50%{box-shadow:0 14px 46px rgba(189,138,60,.8);}}
+.pbtn{ background:var(--color-surface-2); border:1px solid var(--color-border); color:var(--ink); }
+.pbtn:hover{ border-color:var(--gold); color:var(--gold); }
+.bgm-now, .sleep-now{ font-family:var(--mono); font-weight:600; letter-spacing:.04em; color:var(--ink); }
+
+/* 页脚（杂志式） */
+.foot{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; font-family:var(--mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--color-text-soft); opacity:.62; margin-top:10px; padding-top:14px; border-top:1px solid var(--color-border); }
+.foot .title{ font-family:var(--serif-zh); font-weight:400; letter-spacing:.04em; text-transform:none; opacity:.85; font-size:14px; }
+
+/* 常驻安装入口 + 安装帮助弹层 */
+.install-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:-4px 0 6px; padding:0 4px; }
+.install-cta{ border:none; cursor:pointer; font-family:inherit; font-size:14px; font-weight:700; color:#0a1f3d;
+  background:linear-gradient(135deg,#bd8a3c,#d6a85a); padding:11px 18px; border-radius:14px;
+  box-shadow:0 8px 22px rgba(189,138,60,.32); transition:.2s; }
+.install-cta:active{ transform:translateY(1px); }
+.install-row-hint{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-text-soft); }
+
+.install-modal-backdrop{ position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;
+  padding:20px; background:rgba(7,16,30,.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); animation:imFade .2s ease; }
+@keyframes imFade{ from{opacity:0} to{opacity:1} }
+.install-modal{ width:100%; max-width:430px; max-height:86vh; overflow:auto; background:rgba(255,255,255,.98);
+  border:1px solid var(--color-border); border-radius:18px; box-shadow:0 30px 80px rgba(7,16,30,.4);
+  animation:imRise .26s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes imRise{ from{opacity:0; transform:translateY(18px) scale(.98)} to{opacity:1; transform:none} }
+.install-modal-head{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  font-family:var(--serif-zh); font-weight:600; font-size:18px; color:var(--ink);
+  padding:18px 20px; border-bottom:1px solid var(--color-border); }
+.install-modal-x{ border:none; background:transparent; color:var(--color-text-soft); font-size:16px; cursor:pointer; line-height:1; padding:4px 6px; border-radius:8px; }
+.install-modal-x:hover{ background:var(--color-border); }
+.install-modal-body{ padding:18px 20px; }
+.ih-brand{ display:inline-block; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:#0a1f3d; background:var(--gold-soft); border:1px solid rgba(189,138,60,.4); border-radius:999px; padding:4px 12px; margin-bottom:14px; }
+.ih-steps{ margin:0; padding-left:0; list-style:none; counter-reset:step; }
+.ih-steps li{ position:relative; padding:10px 0 10px 38px; border-bottom:1px dashed var(--color-border); color:var(--ink); font-size:14.5px; line-height:1.5; }
+.ih-steps li:last-child{ border-bottom:none; }
+.ih-steps li::before{ counter-increment:step; content:counter(step); position:absolute; left:0; top:9px;
+  width:26px; height:26px; border-radius:50%; background:var(--grad-accent); color:#0a1f3d; font-weight:700; font-size:13px;
+  display:flex; align-items:center; justify-content:center; }
+.ih-note{ margin-top:14px; font-size:12.5px; color:var(--color-text-soft); background:var(--gold-soft); border-radius:10px; padding:10px 12px; line-height:1.5; }
+.install-modal-foot{ display:flex; gap:10px; justify-content:flex-end; padding:14px 20px; border-top:1px solid var(--color-border); }
+.install-modal-btn{ border:1px solid var(--color-border); background:transparent; color:var(--ink); font-family:inherit;
+  font-size:14px; font-weight:600; padding:9px 16px; border-radius:12px; cursor:pointer; }
+.install-modal-btn.primary{ border:none; color:#0a1f3d; background:linear-gradient(135deg,#bd8a3c,#d6a85a); box-shadow:0 6px 16px rgba(189,138,60,.3); }
+@media (prefers-color-scheme: dark){
+  .install-modal{ background:rgba(16,32,58,.98); box-shadow:0 30px 80px rgba(0,0,0,.5); }
+  .ih-brand{ color:#e8c07a; }
+  .ih-steps li{ color:var(--paper); }
+  .ih-note{ color:var(--paper); }
+  .install-modal-btn{ color:var(--paper); }
+}
+</style>
+</head>
+<body>
+<div class="bg-ambient"></div>
+<div class="wrap">
+
+  <div class="chrome-top">
+    <span>声阅 · SHEENGYUEH</span>
+    <span class="sep"></span>
+    <span>文件语音收听</span>
+  </div>
+
+  <div class="header">
+    <div class="logo">🔊</div>
+    <div>
+      <h1>声阅</h1>
+      <p class="sub">文件语音收听 · 手机 / 网页通用</p>
+    </div>
+    <span class="badge">v2.3 · 编辑式</span>
+  </div>
+
+  <div class="install-row">
+    <button class="install-cta" id="installCta" type="button">📲 安装声阅到桌面 / 主屏幕</button>
+    <span class="install-row-hint">手机 · 平板 · 电脑都能装成独立 App</span>
+  </div>
+
+  <!-- 1. 上传 -->
+  <div class="card">
+    <div class="section-title">上传文件</div>
+    <div class="dropzone" id="dropzone">
+      <div class="ic">📄</div>
+      <div class="t1">点击或拖拽文件到此处</div>
+      <div class="t2">自动提取文字并朗读</div>
+      <div class="fmt">
+        <span>PDF</span><span>Word .docx</span><span>EPUB</span><span>Markdown</span>
+        <span>TXT</span><span>HTML</span><span>RTF</span>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf,.docx,.md,.markdown,.txt,.text,.html,.htm,.rtf,.epub" hidden />
+    <div class="limit-note">支持单文件最大 <b>200 MB</b>（PDF / Word ≤ 120 MB，纯文本 ≤ 50 MB）</div>
+
+    <div class="or">— 或 —</div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>直接粘贴文字</label>
+      <textarea id="pasteBox" placeholder="把要听的文字粘贴到这里……"></textarea>
+    </div>
+    <button class="btn btn-primary btn-block" id="usePaste">使用粘贴的文字</button>
+
+    <div class="meta" id="fileMeta"></div>
+  </div>
+
+  <!-- 2. 设置 -->
+  <div class="card" id="settingsCard" style="display:none;">
+    <div class="section-title">朗读设置</div>
+
+    <div class="field">
+      <label>音色</label>
+      <select id="styleSel"></select>
+      <div class="hint" id="styleHint"></div>
+    </div>
+
+    <div class="field">
+      <label>具体嗓音（可选 · 自动匹配最好的一项）</label>
+      <select id="voiceSel"><option>加载中…</option></select>
+    </div>
+
+    <div class="field">
+      <label>语速（慢 ↔ 快）</label>
+      <div class="slider-row">
+        <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" />
+        <span class="val" id="rateVal">1.0×</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>音调</label>
+      <div class="slider-row">
+        <input type="range" id="pitch" min="0.5" max="1.5" step="0.1" value="1" />
+        <span class="val" id="pitchVal">1.0</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>朗读音量 <span style="color:var(--color-text-soft);font-weight:400;">（与背景音独立）</span></label>
+      <div class="slider-row">
+        <input type="range" id="ttsVol" min="0" max="1" step="0.05" value="1" />
+        <span class="val" id="ttsVolVal">100%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>😴 睡眠定时停止</label>
+      <select id="sleepTimer">
+        <option value="off">关闭</option>
+        <option value="15">15 分钟后</option>
+        <option value="30">30 分钟后</option>
+        <option value="45">45 分钟后</option>
+        <option value="60">60 分钟后</option>
+        <option value="90">90 分钟后</option>
+        <option value="chapter">播完本章后</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field-inline">
+      <div class="lbl">🎵 背景轻音乐</div>
+      <label class="switch"><input type="checkbox" id="bgmOn"><span class="track"></span></label>
+    </div>
+
+    <div class="field" id="bgmSrcField" style="display:none;">
+      <label>背景音来源</label>
+      <select id="bgmSrc">
+        <option value="net">网络随机播放</option>
+        <option value="file">上传我的音乐</option>
+      </select>
+      <input type="file" id="bgmFile" accept="audio/*" hidden />
+      <button class="btn btn-ghost btn-block" id="bgmFileBtn" style="display:none;margin-top:12px;">选择音乐文件</button>
+    </div>
+
+    <div class="field" id="bgmShuffleField" style="display:none;">
+      <button class="btn btn-primary btn-block" id="bgmShuffle">🎲 换一首（网络随机）</button>
+    </div>
+
+    <div class="field" id="bgmVolField" style="display:none;">
+      <label>背景音音量 <span style="color:var(--color-text-soft);font-weight:400;">（独立调节）</span></label>
+      <div class="slider-row">
+        <input type="range" id="bgmVol" min="0" max="1" step="0.05" value="0.4" />
+        <span class="val" id="bgmVolVal">40%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 朗读文本 -->
+  <div class="card" id="readingCard" style="display:none;">
+    <div class="nowbar">
+      <span class="eq"><i></i><i></i><i></i><i></i></span>
+      <div class="section-title" style="margin:0;">正在朗读</div>
+    </div>
+    <div class="reading" id="readingBox"></div>
+    <div class="meta" id="readMeta"></div>
+
+    <div class="bm-head">
+      <span>🔖 书签</span>
+      <div class="bm-add">
+        <input type="text" id="bmName" placeholder="书签名称（可选）" maxlength="40" />
+        <button class="btn btn-ghost" id="bmAdd" style="min-height:40px;padding:8px 14px;font-size:13px;">添加</button>
+      </div>
+    </div>
+    <div id="bmList"></div>
+  </div>
+
+  <div class="foot">
+    <div class="title">声阅 · 把文字读给你听</div>
+    <div>— 2026 · SHEENGYUEH —</div>
+  </div>
+
+</div>
+
+<!-- 底部播放条 -->
+<div class="player" id="player" style="display:none;">
+  <div class="inner">
+    <div class="pbar" id="pbar">
+      <div class="track"><div class="fill" id="pfill"></div></div>
+      <div class="handle" id="phandle"></div>
+    </div>
+    <div class="ptip"><span id="ptipLeft">未开始</span><span id="ptipRight">0 / 0 段</span></div>
+    <div class="pctrls">
+      <button class="pbtn" id="prevBtn" title="上一段">⏮</button>
+      <button class="play" id="playBtn" title="播放/暂停">▶</button>
+      <button class="pbtn" id="nextBtn" title="下一段">⏭</button>
+      <button class="pbtn" id="stopBtn" title="停止">⏹</button>
+    </div>
+    <div class="sleep-now" id="timerDisplay"></div>
+    <div class="bgm-now" id="bgmNow"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- 文件体积上限（MB） ----------
+  var LIMITS = { pdf:200, docx:120, epub:120, md:50, markdown:50, txt:50, text:50, html:50, htm:50, rtf:50, default:200 };
+
+  // ---------- 音色风格预设 ----------
+  var VOICE_STYLES = {
+    auto:   {label:"自动 · 系统默认", pitch:1,    rate:1,    gender:null},
+    female: {label:"女声 · 清亮",     pitch:1.18, rate:1,    gender:"f"},
+    male:   {label:"男声 · 沉稳",     pitch:0.82, rate:0.98, gender:"m"},
+    elder:  {label:"老年 · 缓读",     pitch:0.78, rate:0.82, gender:"m"},
+    youth:  {label:"少年 · 活泼",     pitch:1.32, rate:1.12, gender:"f"},
+    tender: {label:"温柔 · 舒缓",     pitch:1.06, rate:0.9,  gender:null},
+    steady: {label:"沉稳 · 播音",     pitch:0.9,  rate:1,    gender:"m"},
+    lively: {label:"活泼 · 清亮",     pitch:1.22, rate:1.08, gender:"f"}
+  };
+
+  // ---------- 网络随机背景音乐（SoundHelix，流式播放，不内嵌音频数据） ----------
+  var BGM_POOL = [];
+  for(var bi=1; bi<=16; bi++){ BGM_POOL.push("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-"+bi+".mp3"); }
+
+  // ---------- 状态 ----------
+  var S = {
+    rawText:"", chunks:[], index:0, playing:false, paused:false, cancelling:false,
+    voices:[], voiceIdx:0, style:"auto", rate:1, ttsVol:1, pitch:1,
+    bgmOn:false, bgmSrc:"net", bgmVol:0.4, bgmTrack:0, bgmAudio:null, bgmFileURL:null,
+    chapterStarts:[0], docId:"", bookmarks:[], timerId:null, timerEnd:0, sleepChapter:false
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+  function toast(msg, isErr){
+    var t = $("toast"); t.textContent = msg; t.className = "toast show" + (isErr?" err":"");
+    clearTimeout(t._t); t._t = setTimeout(function(){ t.className = "toast"+(isErr?" err":""); }, 2600);
+  }
+  function escapeHtml(s){return s.replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+  function fmtSize(mb){ return mb>=1 ? mb+" MB" : Math.round(mb*1024)+" KB"; }
+
+  // ---------- 文本解析 ----------
+    function cleanText(t){
+    t=(t||"").replace(/\u00A0/g," ").replace(/[\u2028\u2029]/g,"\n");
+    t=t.replace(/[ \t\u00A0\uFEFF]+/g," ");
+    t=t.replace(/\n{3,}/g,"\n\n");
+    return t.trim();
+  }
+  function mdToText(md){
+    return cleanText(md
+      .replace(/^#{1,6}\s+/gm,"")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g,"")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g,"$1")
+      .replace(/`{1,3}[^`]*`{1,3}/g,function(m){return m.replace(/`/g,"");})
+      .replace(/\*\*([^*]+)\*\*/g,"$1")
+      .replace(/\*([^*]+)\*/g,"$1")
+      .replace(/^\s*>\s?/gm,"")
+      .replace(/^\s*[-*+]\s+/gm,"")
+      .replace(/^\s*\d+\.\s+/gm,"")
+    );
+  }
+  function htmlToText(html){
+    var d = document.createElement("div"); d.innerHTML = html;
+    Array.prototype.forEach.call(d.querySelectorAll("script,style"), function(n){n.remove();});
+    return cleanText(d.textContent||"");
+  }
+  function rtfToText(rtf){
+    var t = rtf.replace(/\\(par|line|tab)/gi,"\n")
+               .replace(/\\'[0-9a-fA-F]{2}/g,"")
+               .replace(/[\\{}]/g,"")
+               .replace(/\\[a-z]+(-?\d+)?[ ]?/gi,"")
+               .replace(/[^\S\n]+/g," ");
+    return cleanText(t);
+  }
+  function buildChunks(text){
+    var sentences = (text.match(/[^。！？!?；;…\n]*[。！？!?；;…\n]?/g) || [text])
+      .map(function(s){return s.trim();}).filter(Boolean);
+    if(sentences.length === 0) sentences = [text];
+    var chunks = [], buf = "", start = 0;
+    for(var i=0;i<sentences.length;i++){
+      var s = sentences[i];
+      if((buf + s).length > 180 && buf){
+        chunks.push({text:buf, start:start, len:buf.length}); start += buf.length; buf = "";
+      }
+      buf += s;
+      if(buf.length >= 120 || i === sentences.length-1){
+        chunks.push({text:buf, start:start, len:buf.length}); start += buf.length; buf = "";
+      }
+    }
+    if(buf){ chunks.push({text:buf, start:start, len:buf.length}); }
+    return chunks;
+  }
+
+  function setText(text, name, chapterStarts){
+    if(chapterStarts && chapterStarts.length){ text = text.trim(); } else { text = cleanText(text); }
+    if(!text){ toast("未能提取到可读文字", true); return; }
+    S.rawText = text; S.chunks = buildChunks(text); S.index = 0;
+    S.chapterStarts = (chapterStarts && chapterStarts.length) ? chapterStarts : [0];
+    S.docId = makeDocId(name, text.length);
+    $("settingsCard").style.display = "";
+    $("readingCard").style.display = "";
+    $("player").style.display = "";
+    var chars = text.length;
+    var longNote = chars > 200000 ? "（文本很长，已自动分段，可放心后台收听）" : "";
+    var sec = Math.round(chars / (S.rate * 12));
+    var chapNote = S.chapterStarts.length > 1 ? (" · " + S.chapterStarts.length + " 章") : "";
+    $("fileMeta").innerHTML = "已载入：<b>"+(name||"粘贴文本")+"</b> · 共 <b>"+chars.toLocaleString()+"</b> 字 · 分为 <b>"+S.chunks.length+"</b> 段"+longNote+chapNote;
+    $("readMeta").textContent = "约 "+sec+" 秒（按当前语速）";
+    loadBookmarks(); renderBookmarks();
+    renderReading(); updateProgress();
+    toast("文字已就绪，点 ▶ 开始朗读");
+  }
+
+  function renderReading(){
+    var box = $("readingBox");
+    var i = S.index, lo = Math.max(0,i-1), hi = Math.min(S.chunks.length-1,i+1), html = "";
+    for(var k=lo;k<=hi;k++){
+      html += '<span class="'+(k===i?"cur":"")+'">'+escapeHtml(S.chunks[k].text)+'</span>'+(k<hi?"\n":"");
+    }
+    box.innerHTML = html; box.scrollTop = 0;
+  }
+
+  // ---------- 语音 ----------
+  function classifyVoice(v){
+    var s = ((v.name||'')+' '+(v.lang||'')).toLowerCase();
+    if(/female|woman|girl|zira|huihui|yaoyao|samantha|victoria|tessa|ting|yan|meng|婷|燕|女/.test(s)) return "f";
+    if(/male|man|boy|daniel|kangkang|david|george|勇|强|男/.test(s)) return "m";
+    if(/美|芳|丽|娜|静|雪|琳|晓燕/.test(v.name||'')) return "f";
+    if(/伟|军|磊|涛|明|华|建/.test(v.name||'')) return "m";
+    return "n";
+  }
+  function loadVoices(){
+    try{ S.voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }catch(e){ S.voices = []; }
+    var sel = $("voiceSel");
+    if(!("speechSynthesis" in window)){
+      sel.innerHTML = "<option>当前浏览器不支持语音合成</option>";
+      $("styleHint").textContent = "请换用 Chrome / Edge / Safari 等现代浏览器。";
+      return;
+    }
+    if(!S.voices.length){ sel.innerHTML = "<option>加载中…</option>"; return; }
+    var groups = {f:[], m:[], n:[]};
+    S.voices.forEach(function(v,i){ groups[classifyVoice(v)].push(i); });
+    var zh = [];
+    S.voices.forEach(function(v,i){ if(/zh|cmn|Chinese/i.test(v.lang||v.name)) zh.push(i); });
+    var html = "";
+    var build = function(title, arr){
+      if(!arr.length) return "";
+      var g = "<optgroup label='"+title+"'>";
+      arr.forEach(function(i){ g += "<option value='"+i+"'>"+escapeHtml(S.voices[i].name+(S.voices[i].lang?(" · "+S.voices[i].lang):""))+"</option>"; });
+      return g + "</optgroup>";
+    };
+    html += build("女声", groups.f);
+    html += build("男声", groups.m);
+    html += build("中性 / 其他", groups.n);
+    sel.innerHTML = html || "<option>无可用嗓音</option>";
+    var def = groups.f[0] || groups.m[0] || zh[0] || 0;
+    sel.value = def; S.voiceIdx = def;
+    $("styleHint").textContent = zh.length
+      ? "已默认选择中文嗓音，可切换音色风格或具体嗓音。"
+      : "未检测到中文嗓音，将使用默认语音；如需中文请在系统安装对应语音包。";
+    applyStyle(S.style, true);
+  }
+  if("speechSynthesis" in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+
+  function applyStyle(key, silent){
+    var st = VOICE_STYLES[key]; if(!st) return;
+    S.style = key; S.pitch = st.pitch; S.rate = st.rate;
+    $("pitch").value = st.pitch; $("pitchVal").textContent = st.pitch.toFixed(2); paintRange($("pitch"));
+    $("rate").value = st.rate;   $("rateVal").textContent = st.rate.toFixed(1)+"×"; paintRange($("rate"));
+    if(st.gender){
+      var idx = -1;
+      for(var i=0;i<S.voices.length;i++){ if(classifyVoice(S.voices[i])===st.gender){ idx=i; break; } }
+      if(idx>=0){ S.voiceIdx = idx; $("voiceSel").value = idx; }
+    }
+    if(!silent && S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(S.index); }
+  }
+
+  // ---------- 朗读控制 ----------
+  function speakChunk(i){
+    if(i<0 || i>=S.chunks.length) return;
+    S.index = i; S.cancelling = true;
+    try{ speechSynthesis.cancel(); }catch(e){}
+    S.cancelling = false;
+    var u = new SpeechSynthesisUtterance(S.chunks[i].text);
+    var v = S.voices[+$("voiceSel").value];
+    if(v){ u.voice = v; if(v.lang) u.lang = v.lang; }
+    u.rate = S.rate; u.pitch = S.pitch; u.volume = S.ttsVol;
+    u.onend = function(){
+      if(S.cancelling) return;
+      if(S.sleepChapter && (S.chapterStarts.indexOf(S.index+1) >= 0 || S.index+1 >= S.chunks.length || S.chapterStarts.length <= 1)){
+        finish(); return;
+      }
+      if(S.index < S.chunks.length-1){ speakChunk(S.index+1); } else { finish(); }
+    };
+    u.onerror = function(e){
+      if(S.cancelling) return;
+      if(e && e.error === "interrupted") return;
+      if(S.index < S.chunks.length-1){ speakChunk(S.index+1); } else { finish(); }
+    };
+    S.playing = true; S.paused = false;
+    document.body.classList.add("playing");
+    renderReading(); updateProgress(); updatePlayBtn();
+    setTimeout(function(){ try{ speechSynthesis.speak(u); }catch(e){ toast("播放失败："+e.message, true);} }, 30);
+  }
+  function play(){
+    if(!S.chunks.length){ toast("请先上传或粘贴文字"); return; }
+    if(S.paused){ S.paused=false; speakChunk(S.index); return; }
+    speakChunk(S.index);
+  }
+  function pause(){
+    if(!S.playing) return;
+    S.paused = true; S.cancelling = true;
+    try{ speechSynthesis.cancel(); }catch(e){}
+    S.cancelling = false; S.playing = false;
+    document.body.classList.remove("playing");
+    updatePlayBtn(); $("ptipLeft").textContent = "已暂停";
+  }
+  function togglePlay(){ if(S.playing && !S.paused){ pause(); } else { play(); } }
+  function stop(){
+    S.cancelling = true; try{ speechSynthesis.cancel(); }catch(e){}
+    S.cancelling = false; S.playing = false; S.paused = false; S.index = 0;
+    S.sleepChapter = false; clearInterval(S.timerId); S.timerId = null; $("timerDisplay").textContent = "";
+    document.body.classList.remove("playing");
+    updateProgress(); updatePlayBtn(); renderReading();
+    $("ptipLeft").textContent = "未开始";
+  }
+  function finish(){
+    S.playing = false; S.paused = false; S.index = S.chunks.length-1;
+    S.sleepChapter = false; clearInterval(S.timerId); S.timerId = null; $("timerDisplay").textContent = "";
+    document.body.classList.remove("playing");
+    updateProgress(); updatePlayBtn(); $("ptipLeft").textContent = "朗读完成";
+    toast("✅ 已读完");
+  }
+  function updatePlayBtn(){ $("playBtn").textContent = (S.playing && !S.paused) ? "⏸" : "▶"; }
+  function updateProgress(){
+    var total = S.rawText.length || 1;
+    var done = S.index < S.chunks.length ? S.chunks[S.index].start : total;
+    var pct = Math.min(100, Math.round(done/total*100));
+    $("pfill").style.width = pct + "%";
+    $("phandle").style.left = pct + "%";
+    $("ptipRight").textContent = (S.index+1) + " / " + S.chunks.length + " 段";
+    if(S.playing && !S.paused) $("ptipLeft").textContent = "朗读中 "+pct+"%";
+  }
+  $("pbar").addEventListener("click", function(e){
+    if(!S.chunks.length) return;
+    var rect = this.getBoundingClientRect();
+    var frac = Math.max(0, Math.min(1, (e.clientX - rect.left)/rect.width));
+    var target = Math.floor(frac * S.rawText.length), idx = 0;
+    for(var i=0;i<S.chunks.length;i++){ if(S.chunks[i].start <= target) idx = i; else break; }
+    S.index = idx; renderReading(); updateProgress();
+    if(S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(idx); }
+  });
+
+  // ---------- 背景音乐 ----------
+  function ensureAudio(){
+    if(!S.bgmAudio){ S.bgmAudio = new Audio(); S.bgmAudio.loop = true; S.bgmAudio.preload = "none"; }
+  }
+  function playBgm(){
+    if(!S.bgmOn) return;
+    if(S.bgmSrc === "file"){
+      if(S.bgmFileURL){ ensureAudio(); S.bgmAudio.src = S.bgmFileURL; S.bgmAudio.volume = S.bgmVol; S.bgmAudio.play().catch(function(){}); }
+      return;
+    }
+    var url = BGM_POOL[S.bgmTrack] || BGM_POOL[0];
+    ensureAudio();
+    if(S.bgmAudio.src !== url){ S.bgmAudio.src = url; }
+    S.bgmAudio.volume = S.bgmVol;
+    S.bgmAudio.play().catch(function(){ /* 自动播放可能被拦截，开启后轻点即可 */ });
+    $("bgmNow").textContent = "🎵 随机背景乐 #" + (S.bgmTrack+1);
+  }
+  function playRandomBgm(){
+    S.bgmTrack = Math.floor(Math.random() * BGM_POOL.length);
+    playBgm();
+  }
+  function stopBgm(){ if(S.bgmAudio){ try{S.bgmAudio.pause();}catch(e){} } $("bgmNow").textContent=""; }
+  function setBgmVolume(v){ S.bgmVol = v; if(S.bgmAudio) S.bgmAudio.volume = v; }
+  // 背景乐改为网络随机播放，不再渲染固定曲库列表
+
+  // ---------- 文件读取 ----------
+  function extOf(name){ var m=name.toLowerCase().match(/\.([a-z0-9]+)$/); return m?m[1]:""; }
+  function checkSize(file){
+    var ext = extOf(file.name);
+    var limit = LIMITS[ext] || LIMITS.default;
+    if(file.size > limit * 1024 * 1024){
+      toast("文件超过上限（"+ext.toUpperCase()+" 最大 "+fmtSize(limit)+"）", true);
+      return false;
+    }
+    return true;
+  }
+  function handleFile(file){
+    if(!file) return;
+    if(!checkSize(file)) return;
+    var name = file.name.toLowerCase(), ext = extOf(name);
+    $("fileMeta").textContent = "正在解析 "+file.name+" …";
+    if(ext==="pdf"){
+      readAB(file, function(buf){ parsePdf(buf, file.name); });
+    } else if(ext==="docx"){
+      readAB(file, function(buf){ parseDocx(buf, file.name); });
+    } else if(ext==="md" || ext==="markdown" || ext==="txt" || ext==="text"){
+      readText(file, function(t){ setText(ext==="md"||ext==="markdown"?mdToText(t):cleanText(t), file.name); });
+    } else if(ext==="html" || ext==="htm"){
+      readText(file, function(t){ setText(htmlToText(t), file.name); });
+    } else if(ext==="rtf"){
+      readAB(file, function(buf){ setText(rtfToText(new TextDecoder("utf-8").decode(buf)), file.name); });
+    } else if(ext==="epub"){
+      readAB(file, function(buf){ parseEpub(buf, file.name); });
+    } else {
+      toast("暂不支持该格式，请改用 PDF / Word / EPUB / MD / TXT", true);
+    }
+  }
+  function readAB(file, cb){
+    var r = new FileReader();
+    r.onload = function(){ setTimeout(function(){ cb(r.result); }, 10); };
+    r.onerror = function(){ toast("文件读取失败", true); };
+    r.readAsArrayBuffer(file);
+  }
+  function readText(file, cb){
+    var r = new FileReader();
+    r.onload = function(){ cb(r.result); };
+    r.onerror = function(){ toast("文件读取失败", true); };
+    r.readAsText(file);
+  }
+  function parsePdf(buf, name){
+    if(typeof pdfjsLib === "undefined"){ toast("PDF 引擎未加载（检查网络），可改用 TXT/MD", true); return; }
+    try{
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      pdfjsLib.getDocument({data:buf}).promise.then(function(pdf){
+        var pages = new Array(pdf.numPages), done = 0, n = pdf.numPages;
+        for(var p=1;p<=n;p++){
+          (function(pi){
+            pdf.getPage(pi).then(function(page){ return page.getTextContent(); }).then(function(tc){
+              pages[pi-1] = tc.items.map(function(it){return it.str;}).join(" "); done++;
+              if(done===n) setText(cleanText(pages.join("\n")), name);
+            }).catch(function(){ done++; if(done===n) setText(cleanText(pages.join("\n")), name); });
+          })(p);
+        }
+      }).catch(function(e){ toast("PDF 解析失败："+e.message, true); });
+    }catch(e){ toast("PDF 解析失败："+e.message, true); }
+  }
+  function parseDocx(buf, name){
+    if(typeof mammoth === "undefined"){ toast("Word 引擎未加载（检查网络）", true); return; }
+    setTimeout(function(){
+      mammoth.extractRawText({arrayBuffer:buf}).then(function(res){ setText(cleanText(res.value), name); })
+        .catch(function(e){ toast("Word 解析失败："+e.message, true); });
+    }, 10);
+  }
+  function extractXhtmlText(x){
+    var d = document.implementation.createHTMLDocument("x");
+    d.documentElement.innerHTML = x;
+    Array.prototype.forEach.call(d.querySelectorAll("script,style,noscript"), function(n){ n.remove(); });
+    var titleEl = d.querySelector("title");
+    var titleTxt = titleEl ? titleEl.textContent.trim() : "";
+    var body = d.body ? d.body.textContent : "";
+    return (titleTxt ? ("【" + titleTxt + "】\n") : "") + cleanText(body);
+  }
+  function parseEpub(buf, name){
+    if(typeof JSZip === "undefined"){ toast("EPUB 引擎未加载（检查网络）", true); return; }
+    $("fileMeta").textContent = "正在解析 EPUB：" + name + " …";
+    JSZip.loadAsync(buf).then(function(zip){
+      return zip.file("META-INF/container.xml").async("string");
+    }).then(function(cxml){
+      var parser = new DOMParser();
+      var cdoc = parser.parseFromString(cxml, "text/xml");
+      var opfPath = cdoc.querySelector("rootfile").getAttribute("full-path");
+      return zip.file(opfPath).async("string").then(function(opf){
+        var odoc = parser.parseFromString(opf, "text/xml");
+        var manifest = {};
+        odoc.querySelectorAll("manifest > item").forEach(function(it){
+          manifest[it.getAttribute("id")] = { href: it.getAttribute("href"), type: it.getAttribute("media-type") };
+        });
+        var base = opfPath.substring(0, opfPath.lastIndexOf("/") + 1);
+        var order = [];
+        odoc.querySelectorAll("spine > itemref").forEach(function(ir){
+          var idref = ir.getAttribute("idref");
+          if(manifest[idref]) order.push(manifest[idref]);
+        });
+        if(!order.length){ toast("EPUB 无可读内容", true); return; }
+        var chapters = [], done = 0, n = order.length;
+        order.forEach(function(item, idx){
+          var full = base + item.href;
+          zip.file(full).async("string").then(function(x){
+            chapters[idx] = extractXhtmlText(x); done++;
+            if(done === n){
+              var parts = chapters.filter(Boolean);
+              var fullText = parts.join("\n\n");
+              var starts = [], pos = 0;
+              parts.forEach(function(p){ starts.push(pos); pos += p.length + 2; });
+              setText(fullText, name, starts);
+            }
+          }).catch(function(){ done++; if(done === n){ var parts = chapters.filter(Boolean); setText(parts.join("\n\n"), name, []); } });
+        });
+      });
+    }).catch(function(e){ toast("EPUB 解析失败：" + e.message, true); });
+  }
+
+  // ---------- 事件 ----------
+  var dz = $("dropzone");
+  dz.addEventListener("click", function(){ $("fileInput").click(); });
+  $("fileInput").addEventListener("change", function(e){ if(e.target.files[0]) handleFile(e.target.files[0]); });
+  ["dragenter","dragover"].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add("drag"); }); });
+  ["dragleave","drop"].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove("drag"); }); });
+  dz.addEventListener("drop", function(e){ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  // 供 PWA「分享到声阅」调用：微信等应用分享进来的文件由此进入
+  window.__shengyueLoadFile = handleFile;
+
+  $("usePaste").addEventListener("click", function(){
+    var t = $("pasteBox").value;
+    if(!t.trim()){ toast("请先粘贴文字", true); return; }
+    setText(cleanText(t), "粘贴文本");
+  });
+
+  // 音色风格
+  (function(){ var sel=$("styleSel"); sel.innerHTML=""; Object.keys(VOICE_STYLES).forEach(function(k){
+    var o=document.createElement("option"); o.value=k; o.textContent=VOICE_STYLES[k].label; sel.appendChild(o);
+  }); })();
+  $("styleSel").addEventListener("change", function(){ applyStyle(this.value, false); });
+  $("voiceSel").addEventListener("change", function(){ S.voiceIdx = +this.value;
+    if(S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(S.index); }
+  });
+
+  $("rate").addEventListener("input", function(){ S.rate=+this.value; $("rateVal").textContent=S.rate.toFixed(1)+"×"; });
+  $("pitch").addEventListener("input", function(){ S.pitch=+this.value; $("pitchVal").textContent=S.pitch.toFixed(2); });
+  $("ttsVol").addEventListener("input", function(){ S.ttsVol=+this.value; $("ttsVolVal").textContent=Math.round(S.ttsVol*100)+"%"; });
+
+  $("bgmOn").addEventListener("change", function(){
+    S.bgmOn = this.checked;
+    $("bgmSrcField").style.display = S.bgmOn ? "" : "none";
+    $("bgmVolField").style.display = S.bgmOn ? "" : "none";
+    $("bgmShuffleField").style.display = (S.bgmOn && S.bgmSrc!=="file") ? "" : "none";
+    if(S.bgmOn){ if(S.bgmSrc==="file"){ stopBgm(); if(S.bgmFileURL) playBgm(); } else { playRandomBgm(); } }
+    else { stopBgm(); }
+  });
+  $("bgmSrc").addEventListener("change", function(){
+    S.bgmSrc = this.value;
+    $("bgmFileBtn").style.display = (S.bgmSrc==="file") ? "" : "none";
+    $("bgmShuffleField").style.display = (S.bgmSrc!=="file") ? "" : "none";
+    stopBgm();
+    if(S.bgmOn){ if(S.bgmSrc==="file"){ if(S.bgmFileURL) playBgm(); } else { playRandomBgm(); } }
+  });
+  $("bgmShuffle").addEventListener("click", function(){
+    if(S.bgmOn && S.bgmSrc!=="file"){ playRandomBgm(); }
+    else {
+      S.bgmOn = true; $("bgmOn").checked = true;
+      S.bgmSrc = "net"; $("bgmSrc").value = "net";
+      $("bgmSrcField").style.display = ""; $("bgmVolField").style.display = ""; $("bgmShuffleField").style.display = "";
+      playRandomBgm();
+    }
+  });
+  $("bgmVol").addEventListener("input", function(){ setBgmVolume(+this.value); $("bgmVolVal").textContent=Math.round(S.bgmVol*100)+"%"; });
+  $("bgmFileBtn").addEventListener("click", function(){ $("bgmFile").click(); });
+  $("bgmFile").addEventListener("change", function(e){
+    var f = e.target.files[0]; if(!f) return;
+    if(S.bgmFileURL) URL.revokeObjectURL(S.bgmFileURL);
+    S.bgmFileURL = URL.createObjectURL(f);
+    if(S.bgmOn && S.bgmSrc==="file") playBgm();
+    toast("已选择背景音乐："+f.name);
+  });
+
+  $("playBtn").addEventListener("click", togglePlay);
+  $("stopBtn").addEventListener("click", stop);
+  $("prevBtn").addEventListener("click", function(){
+    if(!S.chunks.length) return;
+    var i = Math.max(0, S.index-1); S.index=i; renderReading(); updateProgress();
+    if(S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(i); }
+  });
+  $("nextBtn").addEventListener("click", function(){
+    if(!S.chunks.length) return;
+    var i = Math.min(S.chunks.length-1, S.index+1); S.index=i; renderReading(); updateProgress();
+    if(S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(i); }
+  });
+
+  // ---------- 睡眠定时 ----------
+  function startSleep(val){
+    clearInterval(S.timerId); S.timerId = null; S.sleepChapter = false; $("timerDisplay").textContent = "";
+    if(val === "chapter"){ S.sleepChapter = true; $("timerDisplay").textContent = "😴 播完本章后停止"; return; }
+    var min = +val;
+    if(!min){ return; }
+    S.timerEnd = Date.now() + min * 60000;
+    S.timerId = setInterval(timerTick, 1000); timerTick();
+  }
+  function timerTick(){
+    var left = S.timerEnd - Date.now();
+    if(left <= 0){ clearInterval(S.timerId); S.timerId = null; stop(); $("timerDisplay").textContent = ""; toast("😴 睡眠定时已到点，已停止"); return; }
+    var m = Math.floor(left/60000), s = Math.floor((left%60000)/1000);
+    $("timerDisplay").textContent = "😴 " + m + "分" + (s<10?"0":"") + s + "秒后停止";
+  }
+
+  // ---------- 书签 ----------
+  function makeDocId(name, chars){ return (name||"paste") + "_" + chars; }
+  function loadBookmarks(){
+    S.bookmarks = [];
+    try{ var raw = localStorage.getItem("shengyue_bm_" + S.docId); if(raw) S.bookmarks = JSON.parse(raw); }catch(e){}
+  }
+  function saveBookmarks(){
+    try{ localStorage.setItem("shengyue_bm_" + S.docId, JSON.stringify(S.bookmarks)); }catch(e){}
+  }
+  function renderBookmarks(){
+    var box = $("bmList"); if(!box) return; box.innerHTML = "";
+    if(!S.bookmarks.length){ box.innerHTML = '<div class="hint">暂无书签，听书时点击「添加」记录当前位置。</div>'; return; }
+    S.bookmarks.forEach(function(b){
+      var d = document.createElement("div"); d.className = "bm";
+      var t = document.createElement("div"); t.className = "bm-txt"; t.textContent = b.name;
+      var acts = document.createElement("div"); acts.className = "bm-acts";
+      var j = document.createElement("button"); j.className = "bm-btn"; j.textContent = "跳转";
+      j.onclick = function(){ jumpBookmark(b.index); };
+      var x = document.createElement("button"); x.className = "bm-btn danger"; x.textContent = "删除";
+      x.onclick = function(){ delBookmark(b.id); };
+      acts.appendChild(j); acts.appendChild(x); d.appendChild(t); d.appendChild(acts); box.appendChild(d);
+    });
+  }
+  function addBookmark(){
+    if(!S.chunks.length){ toast("请先载入文本", true); return; }
+    var name = ($("bmName").value || "").trim() || ("第 " + (S.index+1) + " 段 · " + S.chunks[S.index].text.slice(0,12) + "…");
+    S.bookmarks.push({ id: Date.now() + "_" + Math.random().toString(36).slice(2,7), name: name, index: S.index });
+    saveBookmarks(); renderBookmarks(); $("bmName").value = ""; toast("🔖 已添加书签");
+  }
+  function jumpBookmark(i){
+    if(i < 0 || i >= S.chunks.length) return;
+    S.index = i; renderReading(); updateProgress();
+    if(S.playing && !S.paused){ S.cancelling=true; try{speechSynthesis.cancel();}catch(_){} S.cancelling=false; speakChunk(i); }
+  }
+  function delBookmark(id){
+    S.bookmarks = S.bookmarks.filter(function(b){ return b.id !== id; });
+    saveBookmarks(); renderBookmarks();
+  }
+
+  // ---------- 事件绑定（睡眠 / 书签） ----------
+  $("sleepTimer").addEventListener("change", function(){ startSleep(this.value); });
+  $("bmAdd").addEventListener("click", addBookmark);
+  $("bmName").addEventListener("keydown", function(e){ if(e.key === "Enter") addBookmark(); });
+
+  // ---------- 高级感滑块填充 ----------
+  function paintRange(el){
+    if(!el) return;
+    var min = +el.min || 0, max = +el.max || 100, val = +el.value;
+    var p = ((val - min) / (max - min)) * 100;
+    el.style.background = "linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) "+p+"%, var(--color-surface-2) "+p+"%, var(--color-surface-2) 100%)";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[type=range]'), function(el){
+    el.addEventListener('input', function(){ paintRange(el); });
+    paintRange(el);
+  });
+
+  window.addEventListener("beforeunload", function(){ try{speechSynthesis.cancel();}catch(e){} });
+
+  loadVoices();
+})();
+</script>
+
+<!-- PWA：Service Worker 注册 + 「安装到桌面」入口（注入式，不改动原有结构） -->
+<style>
+.pwa-install-bar{
+  position:fixed; left:12px; right:12px; top:12px; z-index:99999;
+  display:flex; align-items:center; gap:12px;
+  padding:12px 14px; border-radius:14px;
+  background:rgba(10,31,61,.94); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  border:1px solid rgba(189,138,60,.5);
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+  transform:translateY(-140%); opacity:0;
+  transition:transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s;
+  font-family:var(--sans-zh,"Noto Sans SC",system-ui,-apple-system,sans-serif);
+}
+.pwa-install-bar.show{ transform:translateY(0); opacity:1; }
+.pwa-install-ic{ width:40px; height:40px; border-radius:10px; flex:0 0 auto; }
+.pwa-install-txt{ flex:1 1 auto; display:flex; flex-direction:column; line-height:1.35; min-width:0; }
+.pwa-install-txt b{ color:#f1f3f5; font-size:14px; font-weight:600; }
+.pwa-install-txt span{ color:#bd8a3c; font-size:12px; }
+.pwa-install-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+.pwa-install-btn{ border:none; cursor:pointer; padding:8px 14px; border-radius:999px; background:#bd8a3c; color:#0a1f3d; font-size:13px; font-weight:700; font-family:inherit; }
+.pwa-install-close{ border:none; background:transparent; color:#f1f3f5; opacity:.6; font-size:14px; cursor:pointer; padding:4px; line-height:1; }
+</style>
+<script>
+(function () {
+  // 1) 注册 Service Worker（离线可用）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (e) {
+        console.warn('[声阅] Service Worker 注册失败：', e);
+      });
+    });
+  }
+
+  // 2) 安装到桌面入口
+  var standalone =
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true;
+  if (standalone) return;
+  var dismissed = false;
+  try { dismissed = localStorage.getItem('shengyue_install_dismissed') === '1'; } catch (e) {}
+  if (dismissed) return;
+
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var deferred = null;
+  var nativePrompted = false;
+
+  // 品牌识别（覆盖小米 / 华为等原生安装弹窗不可靠的浏览器）
+  var uaStr = navigator.userAgent || '';
+  var isXiaomi = /MiuiBrowser|XiaoMi|Redmi/i.test(uaStr);
+  var isHuawei = /HuaweiBrowser|HONOR|HarmonyOS/i.test(uaStr);
+
+  function browserKey() {
+    if (isXiaomi) return 'xiaomi';
+    if (isHuawei) return 'huawei';
+    if (isIOS) return 'ios';
+    if (/Edg\//i.test(uaStr)) return 'edge';
+    if (/Chrome\//i.test(uaStr)) return 'chrome';
+    if (/Firefox/i.test(uaStr)) return 'firefox';
+    return 'generic';
+  }
+
+  function installStepsHTML() {
+    var map = {
+      xiaomi: ['小米浏览器', '点右下角「≡」菜单 →「添加到桌面」', '若弹出授权提示，点「允许」', '桌面出现「声阅」图标，点开即用、可离线'],
+      huawei: ['华为浏览器', '点右上角「⋮」或底部菜单 →「添加至桌面 / 添加到主屏幕」', '允许后桌面出现声阅图标', '装好后像 App 一样打开、可离线听书'],
+      ios: ['iPhone / iPad（Safari）', '点底部「分享」图标（方框加箭头）', '下滑找到「添加到主屏幕」→ 右上角「添加」', '主屏出现声阅图标，体验等同 App'],
+      edge: ['Edge（电脑 / 安卓）', '点地址栏右侧的「安装」图标（或「⋯」菜单）', '选「安装此站点为应用 / 安装声阅」', '装好后从开始菜单 / 桌面启动'],
+      chrome: ['Chrome（安卓 / 电脑）', '点右上角「⋮」→「安装应用 / 安装声阅」', '或直接点本页顶部弹出的「安装」', '确认后即变为独立 App'],
+      firefox: ['Firefox', '菜单（⋯）→「安装」或「添加到主屏幕」', '桌面版可通过扩展，移动版可直接添加', '按提示完成即可'],
+      generic: ['通用步骤', '打开浏览器菜单（通常是右上角 ⋮ 或 ⋯）', '找到「添加到主屏幕 / 安装 / Add to Home Screen / Install」', '按提示确认即可']
+    };
+    var s = map[browserKey()] || map.generic;
+    var html = '<div class="ih-brand">' + s[0] + '</div><ol class="ih-steps">';
+    for (var i = 1; i < s.length; i++) { html += '<li>' + s[i] + '</li>'; }
+    html += '</ol><div class="ih-note">如之前装过旧版，请先删除桌面图标再按上面重装，才能更新。</div>';
+    return html;
+  }
+
+  function showInstallHelp() {
+    if (document.getElementById('installHelpModal')) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'install-modal-backdrop';
+    overlay.id = 'installHelpModal';
+    var hasNative = !!deferred;
+    overlay.innerHTML =
+      '<div class="install-modal">' +
+        '<div class="install-modal-head">安装声阅到桌面 / 主屏幕' +
+          '<button class="install-modal-x" type="button" aria-label="关闭">✕</button>' +
+        '</div>' +
+        '<div class="install-modal-body">' + installStepsHTML() + '</div>' +
+        '<div class="install-modal-foot">' +
+          (hasNative ? '<button class="install-modal-btn primary" id="installTryNative" type="button">尝试系统安装</button>' : '') +
+          '<button class="install-modal-btn" id="installHelpClose" type="button">我知道了</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    function closeHelp() {
+      var m = document.getElementById('installHelpModal');
+      if (m && m.parentNode) m.parentNode.removeChild(m);
+    }
+    overlay.querySelector('.install-modal-x').addEventListener('click', closeHelp);
+    overlay.querySelector('#installHelpClose').addEventListener('click', closeHelp);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeHelp(); });
+    var tryBtn = overlay.querySelector('#installTryNative');
+    if (tryBtn) {
+      tryBtn.addEventListener('click', function () {
+        if (deferred) {
+          try { deferred.prompt(); } catch (e) {}
+          var p = deferred.userChoice; deferred = null;
+          if (p && p.then) p.then(closeHelp).catch(closeHelp); else closeHelp();
+        } else { closeHelp(); }
+      });
+    }
+  }
+
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+
+  function dismiss() {
+    try { localStorage.setItem('shengyue_install_dismissed', '1'); } catch (e) {}
+    var bar = document.querySelector('.pwa-install-bar');
+    if (!bar) return;
+    bar.classList.remove('show');
+    setTimeout(function () { if (bar.parentNode) bar.parentNode.removeChild(bar); }, 320);
+  }
+
+  function buildBanner(mode) {
+    mode = mode || (isIOS ? 'ios' : 'native');
+    if (document.querySelector('.pwa-install-bar')) return;
+    var bar = el('div', 'pwa-install-bar');
+    var icon = el('img', 'pwa-install-ic');
+    icon.src = 'icons/icon-192.png';
+    icon.alt = '';
+    var txt = el('div', 'pwa-install-txt');
+    txt.appendChild(el('b', null, '安装「声阅」到桌面'));
+    var hint, btnLabel;
+    if (mode === 'ios') {
+      hint = 'iPhone / iPad：点底部「分享」→「添加到主屏幕」';
+      btnLabel = '知道了';
+    } else if (mode === 'manual') {
+      var k = browserKey();
+      if (k === 'xiaomi') hint = '小米浏览器：点右下角「≡」→「添加到桌面」';
+      else if (k === 'huawei') hint = '华为浏览器：点「⋮」→「添加至桌面」';
+      else if (k === 'ios') hint = 'Safari：底部「分享」→「添加到主屏幕」';
+      else if (k === 'edge') hint = 'Edge：地址栏「安装」图标，或菜单「安装此站点为应用」';
+      else if (k === 'chrome') hint = 'Chrome：右上「⋮」→「安装应用」';
+      else hint = '浏览器菜单（⋮ / ⋯）里选「安装 / 添加到主屏幕」';
+      btnLabel = '查看步骤';
+    } else {
+      hint = '像 App 一样打开，装好后离线也能听书';
+      btnLabel = '安装';
+    }
+    txt.appendChild(el('span', null, hint));
+
+    var actions = el('div', 'pwa-install-actions');
+    var btn = el('button', 'pwa-install-btn', btnLabel);
+    var close = el('button', 'pwa-install-close', '\u2715');
+    actions.appendChild(btn);
+    actions.appendChild(close);
+
+    bar.appendChild(icon);
+    bar.appendChild(txt);
+    bar.appendChild(actions);
+
+    btn.addEventListener('click', function () {
+      if (mode === 'native' && deferred) {
+        try { deferred.prompt(); } catch (e) {}
+        var p = deferred.userChoice; deferred = null;
+        if (p && p.then) p.then(function () { dismiss(); }).catch(function () { dismiss(); });
+        else dismiss();
+        if (isXiaomi || isHuawei) showInstallHelp(); // 原生安装常无效，补充手动步骤
+      } else {
+        dismiss();
+        showInstallHelp();
+      }
+    });
+    close.addEventListener('click', dismiss);
+
+    document.body.appendChild(bar);
+    requestAnimationFrame(function () { bar.classList.add('show'); });
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    nativePrompted = true;
+    deferred = e;
+    buildBanner('native');
+  });
+
+  // iOS：手动指引「添加到主屏幕」
+  if (isIOS) {
+    window.addEventListener('load', function () {
+      setTimeout(function () { buildBanner('ios'); }, 1200);
+    });
+  }
+
+  // 小米 / 华为自带浏览器：原生安装弹窗常不可靠，打开即给对应手动步骤
+  if (isXiaomi || isHuawei) {
+    window.addEventListener('load', function () {
+      setTimeout(function () { if (!document.querySelector('.pwa-install-bar')) buildBanner('manual'); }, 1200);
+    });
+  }
+
+  // 兜底：浏览器不弹原生安装框（桌面 Safari / 用户曾忽略过 / 部分 WebView），
+  // 4 秒后仍无 beforeinstallprompt 则给「手动安装」指引，确保任何平台都能装
+  if (!isIOS) {
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (standalone || nativePrompted) return;
+        if (document.querySelector('.pwa-install-bar')) return;
+        buildBanner('manual');
+      }, 4000);
+    });
+  }
+
+  window.addEventListener('appinstalled', function () {
+    try { localStorage.setItem('shengyue_install_dismissed', '1'); } catch (e) {}
+    var bar = document.querySelector('.pwa-install-bar');
+    if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+  });
+
+  // 常驻入口：任何时候都能打开安装帮助（覆盖小米/华为等原生弹窗不可靠的情况）
+  var cta = document.getElementById('installCta');
+  if (cta) cta.addEventListener('click', showInstallHelp);
+})();
+</script>
+
+<!-- PWA：读取微信等应用「分享」过来的文件（Web Share Target） -->
+<script>
+(function () {
+  var SHARE_CACHE = 'shengyue-pwa-v1-share';
+  var SHARE_KEY = '/__shengyue_shared__';
+  var inWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+
+  function onReady(fn) {
+    if (document.readyState === 'complete') fn();
+    else window.addEventListener('load', fn);
+  }
+
+  // 1) 微信内置浏览器提示：此处无法安装到桌面
+  function wechatNotice() {
+    if (document.querySelector('.pwa-install-bar')) return;
+    var bar = document.createElement('div');
+    bar.className = 'pwa-install-bar show';
+    var txt = document.createElement('div');
+    txt.className = 'pwa-install-txt';
+    txt.style.flex = '1';
+    txt.appendChild(Object.assign(document.createElement('b'), { innerHTML: '检测到在微信内打开' }));
+    txt.appendChild(Object.assign(document.createElement('span'), { innerHTML: '点右上角「···」→「在浏览器打开」，才能安装到桌面、或把微信文件分享给声阅' }));
+    var close = document.createElement('button');
+    close.className = 'pwa-install-close';
+    close.innerHTML = '\u2715';
+    close.addEventListener('click', function () { if (bar.parentNode) bar.parentNode.removeChild(bar); });
+    bar.appendChild(txt);
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+  }
+
+  // 2) 把被分享进来的文件送入应用
+  function loadIntoApp(blob, name) {
+    var tries = 0;
+    (function attempt() {
+      if (typeof window.__shengyueLoadFile === 'function') {
+        var f = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+        window.__shengyueLoadFile(f);
+      } else if (tries++ < 60) {
+        setTimeout(attempt, 150);
+      }
+    })();
+  }
+
+  function pickShared() {
+    if (!('caches' in window)) return;
+    caches.open(SHARE_CACHE).then(function (cache) {
+      return cache.match(SHARE_KEY);
+    }).then(function (res) {
+      if (!res) return;
+      return res.blob().then(function (blob) {
+        var name = 'shared';
+        try { name = decodeURIComponent(res.headers.get('X-Shengyue-Filename') || 'shared'); } catch (e) {}
+        caches.open(SHARE_CACHE).then(function (c) { c.delete(SHARE_KEY); });
+        loadIntoApp(blob, name);
+        try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      });
+    }).catch(function (e) { console.warn('[声阅] 读取分享文件失败', e); });
+  }
+
+  // 3) 上传区下方追加「怎么直接读微信文件」说明
+  function addWxTip() {
+    var dz = document.getElementById('dropzone');
+    if (!dz || document.getElementById('shengyue-wx-tip')) return;
+    var tips = document.createElement('details');
+    tips.id = 'shengyue-wx-tip';
+    tips.style.cssText = 'margin:12px 0 2px;font-size:12.5px;line-height:1.75;color:inherit;opacity:.85;';
+    tips.innerHTML =
+      '<summary style="cursor:pointer;font-weight:600;color:#bd8a3c;list-style:none;">📥 怎么直接读微信里的文件？</summary>' +
+      '<div style="margin-top:6px;">' +
+      '<b>安卓</b>：在微信里长按文件 →「分享」/「用其他应用打开」→ 选「声阅」（需先把声阅装到桌面）。<br>' +
+      '<b>iPhone</b>：在微信里打开文件 → 右上角「···」→「存储到"文件"」→ 回到声阅点上方选择文件即可。<br>' +
+      '若本页正开在微信内，请点右上角「···」→「在浏览器打开」。' +
+      '</div>';
+    dz.parentNode.insertBefore(tips, dz.nextSibling);
+  }
+
+  onReady(function () {
+    if (inWeChat) wechatNotice();
+    pickShared();
+    addWxTip();
+  });
+})();
+</script>
+</body>
+</html>
